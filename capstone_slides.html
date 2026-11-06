@@ -1,0 +1,383 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8"><title>Data Science Capstone Project Report — SpaceX Falcon 9 Landing Prediction</title>
+<style>
+* { box-sizing: border-box; }
+body { margin:0; background:#e0e0e0; font-family: Arial, Helvetica, sans-serif; color:#161616; }
+.slide { width:1280px; height:720px; margin:0 auto 16px; background:#fff; padding:36px 56px 56px; position:relative; overflow:hidden; page-break-after:always; }
+@media print { body{background:#fff} .slide{margin:0} @page{ size:1280px 720px; margin:0; } }
+h1{font-size:36px;color:#0f62fe;margin:0 0 6px;line-height:1.15}
+h2{font-size:30px;color:#0f62fe;margin:0 0 10px}
+h3{font-size:19px;margin:14px 0 6px;color:#0043ce}
+p,li{font-size:17px;line-height:1.45}
+ul{margin:6px 0;padding-left:24px}
+.kicker{font-size:15px;letter-spacing:2px;text-transform:uppercase;color:#6f6f6f;margin-bottom:8px}
+.foot{position:absolute;left:56px;right:56px;bottom:16px;font-size:12px;color:#8d8d8d;border-top:1px solid #e0e0e0;padding-top:8px}
+.pageno{position:absolute;right:56px;bottom:16px;font-size:12px;color:#8d8d8d}
+table{border-collapse:collapse;font-size:15px;margin:8px 0}
+th,td{border:1px solid #c6c6c6;padding:6px 10px;text-align:left}
+th{background:#0f62fe;color:#fff}
+.kpis{display:flex;gap:16px;margin:14px 0}
+.kpi{flex:1;background:#edf5ff;border:1px solid #a6c8ff;border-radius:8px;padding:14px}
+.kpi .n{font-size:34px;font-weight:bold;color:#0f62fe}
+.kpi .l{font-size:14px;color:#393939}
+.flow{display:flex;align-items:stretch;gap:0;margin:14px 0;flex-wrap:wrap}
+.step{background:#edf5ff;border:2px solid #0f62fe;border-radius:8px;padding:10px 12px;font-size:15px;max-width:200px;text-align:center}
+.arrow{align-self:center;font-size:26px;color:#0f62fe;padding:0 6px}
+.chart{background:#f4f4f4;border:1px solid #e0e0e0;border-radius:6px;padding:8px}
+.two{display:flex;gap:20px}
+.two>div{flex:1}
+.note{font-size:14px;color:#525252}
+.url{color:#0f62fe;font-weight:bold}
+.cm{display:grid;grid-template-columns:110px 110px 110px;gap:0;font-size:16px}
+.cm div{border:1px solid #8d8d8d;padding:12px;text-align:center}
+.cm .h{background:#0f62fe;color:#fff;font-weight:bold}
+.cm .d{background:#d3e7ff;font-weight:bold;font-size:22px}
+</style></head><body>
+
+<section class="slide" style="background:linear-gradient(135deg,#001d6c 0%,#0f62fe 100%);color:#fff;padding-top:110px">
+<div class="kicker" style="color:#a6c8ff">IBM Applied Data Science Capstone</div>
+<h1 style="color:#fff;font-size:52px">SpaceX Falcon 9 First Stage Landing Prediction</h1>
+<p style="font-size:24px;color:#d0e2ff">Data Science Capstone Project Report — predicting whether the Falcon 9 first stage will land successfully, so the cost of a launch can be estimated.</p>
+<p style="font-size:19px;margin-top:44px">Sadman Mubassir Jarif &nbsp;|&nbsp; November 2026</p>
+<p style="font-size:18px">Project repository: <span style="color:#fff;font-weight:bold">https://github.com/SadmanJarif/applied-data-science-capstone</span></p>
+<div class="foot" style="color:#a6c8ff;border-top-color:#4c7dd9">Data: SpaceX REST API and Wikipedia Falcon 9 launch records &nbsp;|&nbsp; 90 Falcon 9 launches, 2010–2020</div>
+</section>
+
+<section class="slide">
+<div class="kicker">Executive Summary</div>
+<h2>Executive Summary</h2>
+<p><b>Methods.</b> Collected 90 Falcon 9 launches from the SpaceX REST API and Wikipedia web scraping; wrangled the data (cleaning, one-hot encoding, a Class label for landing success); explored it with data visualization and SQL; mapped launch sites with Folium and built a Plotly Dash dashboard; trained four machine-learning models (Logistic Regression, SVM, Decision Tree, KNN) on an 80/20 train–test split (18 test records).</p>
+<div class="kpis">
+<div class="kpi"><div class="n">66.7%</div><div class="l">Overall first-stage landing success rate (60 of 90 launches)</div></div>
+<div class="kpi"><div class="n">90.0%</div><div class="l">Success rate in 2019 — up from 0% in 2010–2013</div></div>
+<div class="kpi"><div class="n">77.3%</div><div class="l">Best launch site: KSC LC 39A (17 of 22 successful)</div></div>
+<div class="kpi"><div class="n">94.44%</div><div class="l">Best model test accuracy: Decision Tree (17 of 18 correct)</div></div>
+</div>
+<p><b>Key results.</b> Landing success improves sharply with flight experience and over time; VLEO orbits succeed most often (85.7%) and GTO least (51.9%) among major orbits; KSC LC 39A is the most reliable launch site. The Decision Tree predicts landing outcome with 94.44% test accuracy, so SpaceX can estimate launch cost from landing success with high confidence.</p>
+<div class="foot">IBM Applied Data Science Capstone — SpaceX Falcon 9 Landing Prediction</div><div class="pageno">2</div>
+</section>
+
+<section class="slide">
+<div class="kicker">Introduction</div>
+<h2>Introduction</h2>
+<h3>Background</h3>
+<p>SpaceX advertises a Falcon 9 rocket launch at $62 million, while other providers charge upwards of $165 million. Most of this saving comes from reusing the first stage: SpaceX lands it (on a drone ship or a ground pad) and flies it again instead of losing it in the ocean.</p>
+<h3>The problem</h3>
+<p>If the first stage cannot be recovered, the launch costs far more. So the key business question is: <b>can we predict whether the Falcon 9 first stage will land successfully?</b> If we can predict the landing outcome, we can estimate the cost of a launch.</p>
+<h3>What this project does</h3>
+<ul>
+<li>Collects Falcon 9 launch data from the SpaceX API and Wikipedia (90 launches, 2010–2020).</li>
+<li>Explores which factors affect landing success: launch site, orbit, payload mass, flight number and landing outcome.</li>
+<li>Builds an interactive dashboard and map of launch sites and outcomes.</li>
+<li>Trains machine-learning models to predict landing success (Class = 1) vs. failure (Class = 0).</li>
+</ul>
+<div class="foot">IBM Applied Data Science Capstone — SpaceX Falcon 9 Landing Prediction</div><div class="pageno">3</div>
+</section>
+<section class="slide">
+<div class="kicker">Data Collection — SpaceX API</div>
+<h2>Data Collection — SpaceX API</h2>
+<p>Launch data was collected from the <b>SpaceX REST API</b> using Python <b>requests</b> and <b>JSON</b> handling.</p>
+<div class="flow">
+<div class="step">SpaceX REST API<br><b>api.spacexdata.com/v4/launches/past</b></div><div class="arrow">&#8594;</div>
+<div class="step">GET request with Python <b>requests</b></div><div class="arrow">&#8594;</div>
+<div class="step">JSON response: 90 past launches</div><div class="arrow">&#8594;</div>
+<div class="step">Normalize with <b>json_normalize</b>; resolve rocket, launchpad, payload &amp; core IDs via their endpoints</div><div class="arrow">&#8594;</div>
+<div class="step">Filter BoosterVersion = Falcon 9 &#8594; <b>dataset_part_1.csv</b> (90 rows &#215; 17 columns)</div>
+</div>
+<p><b>Key phrases:</b> REST API &bull; GET request &bull; JSON &bull; normalization &bull; endpoints (/rockets, /launchpads, /payloads, /cores) &bull; filtering</p>
+<p><b>Fields collected:</b> FlightNumber, Date, BoosterVersion, PayloadMass, Orbit, LaunchSite, Outcome, Flights, GridFins, Reused, Legs, LandingPad, Block, ReusedCount, Serial, Longitude, Latitude. First launch in the data: 2006-03-17.</p>
+<div class="foot">IBM Applied Data Science Capstone — SpaceX Falcon 9 Landing Prediction</div><div class="pageno">4</div>
+</section>
+
+<section class="slide">
+<div class="kicker">Data Collection — Web Scraping</div>
+<h2>Data Collection — Web Scraping</h2>
+<p>Launch records were also scraped from Wikipedia to cross-check and complete the API data.</p>
+<div class="flow">
+<div class="step">Wikipedia page<br><b>“List of Falcon 9 and Falcon Heavy launches”</b></div><div class="arrow">&#8594;</div>
+<div class="step"><b>requests</b> GET the page HTML</div><div class="arrow">&#8594;</div>
+<div class="step"><b>BeautifulSoup</b> parses the HTML tables</div><div class="arrow">&#8594;</div>
+<div class="step">Extract Flight No., Date, Booster version, Payload mass, Orbit, Launch site, Outcome</div><div class="arrow">&#8594;</div>
+<div class="step">Clean &amp; cross-check with API data &#8594; verified launch records</div>
+</div>
+<p><b>Key phrases:</b> web scraping &bull; BeautifulSoup &bull; HTML table parsing &bull; requests &bull; data extraction &bull; cross-checking</p>
+<p>The scraped table confirms the API data: 90 Falcon 9 launches, all with BoosterVersion = Falcon 9, and the same launch sites, orbits and outcomes used in the analysis.</p>
+<div class="foot">IBM Applied Data Science Capstone — SpaceX Falcon 9 Landing Prediction</div><div class="pageno">5</div>
+</section>
+
+<section class="slide">
+<div class="kicker">Data Wrangling</div>
+<h2>Data Wrangling Methodology</h2>
+<ul>
+<li><b>Missing values:</b> only <b>LandingPad</b> has missing values (26 of 90); all other columns are complete. PayloadMass mean is 6,105 kg (min 350 kg, max 15,600 kg).</li>
+<li><b>Outcome labels:</b> the Outcome column (e.g. True ASDS, True RTLS, None None) was converted into a binary target <b>Class</b> — 1 = first stage landed successfully, 0 = otherwise. Overall success rate: 66.7% (60 of 90).</li>
+<li><b>One-hot encoding:</b> Orbit (11 categories), LaunchSite (3), LandingPad (5) and Serial (53) were one-hot encoded, giving <b>80 feature columns</b> for modelling.</li>
+<li><b>Result:</b> <b>dataset_part_2.csv</b> — 90 rows &#215; 18 columns (dataset_part_1.csv + Class).</li>
+</ul>
+<table><tr><th>Outcome</th><td>True ASDS 41</td><td>None None 19</td><td>True RTLS 14</td><td>False ASDS 6</td></tr><tr><th>Outcome</th><td>True Ocean 5</td><td>False Ocean 2</td><td>None ASDS 2</td><td>False RTLS 1</td></tr></table>
+<p>Code, notebooks and data: <span class="url">https://github.com/SadmanJarif/applied-data-science-capstone</span></p>
+<div class="foot">IBM Applied Data Science Capstone — SpaceX Falcon 9 Landing Prediction</div><div class="pageno">6</div>
+</section>
+
+<section class="slide">
+<div class="kicker">Exploratory Data Analysis — Visualization</div>
+<h2>EDA with Data Visualization</h2>
+<p>Charts were drawn with Matplotlib/Seaborn (and Plotly for the dashboard) to see how landing success depends on flight experience, payload, launch site and orbit.</p>
+<table><tr><th>Chart</th><th>Purpose</th></tr>
+<tr><td>Scatter: FlightNumber vs LaunchSite</td><td>Does success improve with flight experience at each site?</td></tr>
+<tr><td>Scatter: PayloadMass vs LaunchSite</td><td>Does payload mass affect landing success at each site?</td></tr>
+<tr><td>Scatter: FlightNumber vs Orbit</td><td>Does success improve with experience for each orbit?</td></tr>
+<tr><td>Scatter: PayloadMass vs Orbit</td><td>Does payload mass affect success for each orbit?</td></tr>
+<tr><td>Bar: success rate by orbit</td><td>Compare landing success across orbits</td></tr>
+<tr><td>Line: yearly success rate</td><td>Show the trend in landing success over 2010–2020</td></tr>
+<tr><td>Pie: successful landings by site</td><td>Share of successful landings from each launch site</td></tr></table>
+<p>Code, notebooks and data: <span class="url">https://github.com/SadmanJarif/applied-data-science-capstone</span></p>
+<div class="foot">IBM Applied Data Science Capstone — SpaceX Falcon 9 Landing Prediction</div><div class="pageno">7</div>
+</section>
+<section class="slide">
+<div class="kicker">Exploratory Data Analysis — SQL</div>
+<h2>EDA with SQL</h2>
+<p>The SpaceX launch data (<b>spacex.csv</b>, 101 rows) was loaded into a SQLite database (table <b>SPACEXTBL</b>) and queried with SQL.</p>
+<table><tr><th>Task</th><th>SQL query (summary)</th></tr>
+<tr><td>Preview the data</td><td>SELECT * FROM SPACEXTBL LIMIT 20</td></tr>
+<tr><td>Unique launch sites</td><td>SELECT DISTINCT Launch_Site FROM SPACEXTBL</td></tr>
+<tr><td>Total payload for NASA (CRS)</td><td>SELECT SUM(PAYLOAD_MASS__KG_) WHERE Customer = 'NASA (CRS)'</td></tr>
+<tr><td>Average payload, F9 v1.1</td><td>SELECT AVG(PAYLOAD_MASS__KG_) WHERE Booster_Version = 'F9 v1.1'</td></tr>
+<tr><td>First successful ground-pad landing</td><td>SELECT MIN(Date) WHERE Landing_Outcome = 'Success (ground pad)'</td></tr>
+<tr><td>Drone-ship successes, payload 4,000–6,000 kg</td><td>SELECT Booster_Version WHERE Landing_Outcome = 'Success (drone ship)' AND PAYLOAD_MASS__KG_ BETWEEN 4000 AND 6000</td></tr>
+<tr><td>Mission outcome counts</td><td>SELECT Mission_Outcome, COUNT(*) GROUP BY Mission_Outcome</td></tr>
+<tr><td>Launches by site</td><td>SELECT Launch_Site, COUNT(*) GROUP BY Launch_Site</td></tr></table>
+<p>Code, notebooks and data: <span class="url">https://github.com/SadmanJarif/applied-data-science-capstone</span></p>
+<div class="foot">IBM Applied Data Science Capstone — SpaceX Falcon 9 Landing Prediction</div><div class="pageno">8</div>
+</section>
+
+<section class="slide">
+<div class="kicker">Interactive Visual Analytics</div>
+<h2>Interactive Visual Analytics</h2>
+<h3>Folium map</h3>
+<ul>
+<li>Markers for all launch sites (CCAFS LC-40, CCAFS SLC-40, KSC LC-39A, VAFB SLC-4E) and a circle marker for every launch record, coloured green for a successful landing and red for a failure.</li>
+<li>MousePosition and distance measurement, plus a proximity analysis (distance from CCAFS SLC-40 to the coastline, railway, highway and nearest city).</li>
+</ul>
+<h3>Plotly Dash dashboard</h3>
+<ul>
+<li>A dropdown selects a launch site (All Sites, or one site); a pie chart shows successful launches for the selection.</li>
+<li>A payload range slider (0–10,000 kg) filters a scatter chart of payload mass vs. launch outcome, coloured by booster version.</li>
+</ul>
+<p>Code, notebooks and data: <span class="url">https://github.com/SadmanJarif/applied-data-science-capstone</span></p>
+<div class="foot">IBM Applied Data Science Capstone — SpaceX Falcon 9 Landing Prediction</div><div class="pageno">9</div>
+</section>
+
+<section class="slide">
+<div class="kicker">EDA Visualization Results — Scatter Plots</div>
+<h2>Flight Number &amp; Payload vs. Launch Site</h2>
+<div class="two">
+<div><h3>Flight Number vs. Launch Site</h3><div class="chart" id="ch-fn-site"></div></div>
+<div><h3>Payload Mass vs. Launch Site</h3><div class="chart" id="ch-pay-site"></div></div>
+</div>
+<p><b>Insight:</b> Landing success rises with flight number — later flights (more experience) land successfully far more often, at every site. Payload mass shows no strong effect on outcome: successes and failures occur across the whole 350–15,600 kg range. CCAFS SLC 40 has the most launches (55) but the lowest success rate (60.0%); KSC LC 39A (77.3%) and VAFB SLC 4E (76.9%) are more reliable.</p>
+<div class="foot">Green = successful landing (Class 1) &nbsp;|&nbsp; Red = failed landing (Class 0)</div><div class="pageno">10</div>
+</section>
+
+<section class="slide">
+<div class="kicker">EDA Visualization Results — Scatter Plots</div>
+<h2>Flight Number &amp; Payload vs. Orbit</h2>
+<div class="two">
+<div><h3>Flight Number vs. Orbit</h3><div class="chart" id="ch-fn-orbit"></div></div>
+<div><h3>Payload Mass vs. Orbit</h3><div class="chart" id="ch-pay-orbit"></div></div>
+</div>
+<p><b>Insight:</b> The same experience effect appears for every orbit: early flights mostly fail, later flights mostly succeed. Heavy payloads (up to 15,600 kg) still land successfully — VLEO missions carry the heaviest payloads and succeed 85.7% of the time. GTO is the hardest major orbit (51.9% success); SSO succeeds 100% (5 of 5).</p>
+<div class="foot">Green = successful landing (Class 1) &nbsp;|&nbsp; Red = failed landing (Class 0)</div><div class="pageno">11</div>
+</section>
+<section class="slide">
+<div class="kicker">EDA Visualization Results — Bar Chart &amp; Yearly Trend</div>
+<h2>Success Rate by Orbit &amp; by Year</h2>
+<div class="two">
+<div><h3>Yearly landing success rate</h3><div class="chart" id="ch-yearly"></div></div>
+<div><h3>Success rate by orbit</h3><div class="chart" id="ch-orbitbar"></div></div>
+</div>
+<p><b>Insight:</b> Landing success rose from <b>0% in 2010–2013</b> to 33.3% (2014–2015), 62.5% (2016), 83.3% (2017), 61.1% (2018), <b>90.0% (2019)</b> and 84.2% (2020). By orbit, SSO (100%, 5 of 5) and VLEO (85.7%, 12 of 14) are the most reliable; GTO is the hardest major orbit at 51.9% (14 of 27); LEO 71.4%, ISS 61.9%, PO 66.7%, MEO 66.7%.</p>
+<div class="foot">IBM Applied Data Science Capstone — SpaceX Falcon 9 Landing Prediction</div><div class="pageno">12</div>
+</section>
+
+<section class="slide">
+<div class="kicker">EDA with SQL — Results</div>
+<h2>EDA with SQL — Results</h2>
+<table><tr><th>Question</th><th>Result (spacex.csv, 101 rows)</th></tr>
+<tr><td>Unique launch sites</td><td>CCAFS LC-40, CCAFS SLC-40, KSC LC-39A, VAFB SLC-4E</td></tr>
+<tr><td>Total payload mass, NASA (CRS)</td><td>45,596 kg</td></tr>
+<tr><td>Average payload mass, F9 v1.1</td><td>2,928.4 kg</td></tr>
+<tr><td>First successful ground-pad landing</td><td>2015-12-22</td></tr>
+<tr><td>Successful drone-ship landings, payload 4,000–6,000 kg</td><td>F9 FT B1022, F9 FT B1026, F9 FT B1021.2, F9 FT B1031.2</td></tr>
+<tr><td>Mission outcomes</td><td>Success: 100 &nbsp;|&nbsp; Failure (in flight): 1</td></tr></table>
+<h3>Launch sites in the 90-launch Falcon 9 dataset</h3>
+<table><tr><th>Launch site</th><th>Launches</th><th>Successful landings</th><th>Success rate</th></tr>
+<tr><td>CCAFS SLC 40</td><td>55</td><td>33</td><td>60.0%</td></tr>
+<tr><td>KSC LC 39A</td><td>22</td><td>17</td><td>77.3%</td></tr>
+<tr><td>VAFB SLC 4E</td><td>13</td><td>10</td><td>76.9%</td></tr></table>
+<div class="foot">IBM Applied Data Science Capstone — SpaceX Falcon 9 Landing Prediction</div><div class="pageno">13</div>
+</section>
+
+<section class="slide">
+<div class="kicker">Interactive Visual Analytics — Folium Map</div>
+<h2>Folium Map — Launch Sites &amp; Launch Records</h2>
+<div class="chart" id="ch-map"></div>
+<table><tr><th>Launch site</th><th>Latitude</th><th>Longitude</th><th>Launches (90-launch dataset)</th></tr>
+<tr><td>CCAFS LC-40</td><td>28.5623</td><td>-80.5774</td><td>— (in SQL dataset)</td></tr>
+<tr><td>CCAFS SLC-40</td><td>28.5632</td><td>-80.5768</td><td>55</td></tr>
+<tr><td>KSC LC-39A</td><td>28.5733</td><td>-80.6469</td><td>22</td></tr>
+<tr><td>VAFB SLC-4E</td><td>34.6328</td><td>-120.6107</td><td>13</td></tr></table>
+<p><b>Proximity analysis (CCAFS SLC-40):</b> coastline 0.86 km &nbsp;|&nbsp; railway 1.28 km &nbsp;|&nbsp; highway 0.58 km &nbsp;|&nbsp; nearest city 51.43 km. <b>Insight:</b> launch sites sit on coasts (safety), close to rail and highway transport, and far from cities; success markers (green) cluster at KSC LC-39A and VAFB SLC-4E.</p>
+<div class="foot">IBM Applied Data Science Capstone — SpaceX Falcon 9 Landing Prediction</div><div class="pageno">14</div>
+</section>
+<section class="slide">
+<div class="kicker">Interactive Visual Analytics — Plotly Dash</div>
+<h2>Plotly Dash Dashboard — Success &amp; Payload</h2>
+<div class="two">
+<div><h3>Successful landings by launch site</h3><div class="chart" id="ch-pie-site"></div></div>
+<div><h3>Payload mass vs. launch outcome</h3><div class="chart" id="ch-pay-class"></div></div>
+</div>
+<p><b>Insight:</b> The dashboard's pie chart shows that CCAFS SLC 40 contributes the most successful landings (33 of 60), while KSC LC 39A has the highest success rate (77.3%). The payload-vs-outcome scatter (filtered with the 0–10,000 kg slider and the site dropdown) shows successful landings across the full payload range — payload mass alone does not determine the outcome. Colour: green = successful landing, red = failed landing.</p>
+<div class="foot">IBM Applied Data Science Capstone — SpaceX Falcon 9 Landing Prediction</div><div class="pageno">15</div>
+</section>
+
+<section class="slide">
+<div class="kicker">Predictive Analysis</div>
+<h2>Predictive Analysis — Machine Learning</h2>
+<p><b>Features:</b> one-hot encoded Orbit, LaunchSite, LandingPad, Serial plus FlightNumber, PayloadMass, Flights, GridFins, Reused, Legs, Block, ReusedCount (80 columns), standardized. <b>Split:</b> 72 train / 18 test records (80/20, random_state = 2).</p>
+<div class="two">
+<div><h3>Test accuracy by model</h3><div class="chart" id="ch-model"></div></div>
+<div><h3>Confusion matrix — Decision Tree (test set)</h3>
+<div class="cm"><div class="h"></div><div class="h">Predicted: fail (0)</div><div class="h">Predicted: land (1)</div><div class="h">Actual: fail (0)</div><div class="d">5</div><div>1</div><div class="h">Actual: land (1)</div><div>0</div><div class="d">12</div></div>
+<p class="note">5 true negatives, 1 false positive, 0 false negatives, 12 true positives — 17 of 18 correct (94.44%). The tree never missed a successful landing.</p></div>
+</div>
+<p><b>Conclusion:</b> the <b>Decision Tree is the best model (94.44% test accuracy)</b>, ahead of Logistic Regression (83.33%) and SVM with a sigmoid kernel (83.33%); KNN trails at 66.67%. Landing success can be predicted from launch data with high confidence.</p>
+<div class="foot">IBM Applied Data Science Capstone — SpaceX Falcon 9 Landing Prediction</div><div class="pageno">16</div>
+</section>
+
+<section class="slide">
+<div class="kicker">Conclusion</div>
+<h2>Conclusion</h2>
+<ul>
+<li><b>Landing success is predictable.</b> A Decision Tree predicts first-stage landing success with 94.44% test accuracy, so the cost of a Falcon 9 launch can be estimated before flight.</li>
+<li><b>Experience matters most.</b> Success rose from 0% in 2010–2013 to 90.0% in 2019 as SpaceX gained flight experience.</li>
+<li><b>Site and orbit matter.</b> KSC LC 39A is the most reliable site (77.3%); VLEO (85.7%) and SSO (100%) are the most reliable orbits, GTO the hardest (51.9%).</li>
+<li><b>Payload is not the deciding factor.</b> Landings succeed across the full 350–15,600 kg payload range.</li>
+<li><b>Reuse drives the cost advantage:</b> recovering the first stage is what makes a $62M Falcon 9 launch possible.</li>
+</ul>
+<p><b>Project repository (code, notebooks, data and this report):</b><br><span class="url">https://github.com/SadmanJarif/applied-data-science-capstone</span></p>
+<p class="note">Appendix: the full analysis notebook, datasets (dataset_part_1.csv, dataset_part_2.csv) and additional charts are in the GitHub repository. Report prepared November 2026.</p>
+<div class="foot">IBM Applied Data Science Capstone — SpaceX Falcon 9 Landing Prediction</div><div class="pageno">17</div>
+</section>
+
+<script>
+var DATA=[
+[1,6104,'LEO','CCAFS SLC 40',0],[2,525,'LEO','CCAFS SLC 40',0],[3,677,'ISS','CCAFS SLC 40',0],[4,500,'PO','VAFB SLC 4E',0],[5,3170,'GTO','CCAFS SLC 40',0],[6,3325,'GTO','CCAFS SLC 40',0],[7,2296,'ISS','CCAFS SLC 40',1],[8,1316,'LEO','CCAFS SLC 40',1],[9,4535,'GTO','CCAFS SLC 40',0],[10,4428,'GTO','CCAFS SLC 40',0],
+[11,2216,'ISS','CCAFS SLC 40',0],[12,2395,'ISS','CCAFS SLC 40',0],[13,570,'ES-L1','CCAFS SLC 40',1],[14,1898,'ISS','CCAFS SLC 40',0],[15,4707,'GTO','CCAFS SLC 40',0],[16,2477,'ISS','CCAFS SLC 40',0],[17,2034,'LEO','CCAFS SLC 40',1],[18,553,'PO','VAFB SLC 4E',0],[19,5271,'GTO','CCAFS SLC 40',0],[20,3136,'ISS','CCAFS SLC 40',1],
+[21,4696,'GTO','CCAFS SLC 40',1],[22,3100,'GTO','CCAFS SLC 40',1],[23,2257,'ISS','CCAFS SLC 40',1],[24,4600,'GTO','CCAFS SLC 40',1],[25,5500,'GTO','CCAFS SLC 40',0],[26,9600,'PO','VAFB SLC 4E',1],[27,2490,'ISS','KSC LC 39A',1],[28,5600,'GTO','KSC LC 39A',0],[29,5300,'GTO','KSC LC 39A',1],[30,6104,'LEO','KSC LC 39A',1],
+[31,6070,'GTO','KSC LC 39A',0],[32,2708,'ISS','KSC LC 39A',1],[33,3669,'GTO','KSC LC 39A',1],[34,9600,'PO','VAFB SLC 4E',1],[35,6761,'GTO','KSC LC 39A',0],[36,2910,'ISS','KSC LC 39A',1],[37,475,'SSO','VAFB SLC 4E',1],[38,4990,'LEO','KSC LC 39A',1],[39,9600,'PO','VAFB SLC 4E',1],[40,5200,'GTO','KSC LC 39A',1],
+[41,3700,'GTO','KSC LC 39A',1],[42,2205,'ISS','CCAFS SLC 40',1],[43,9600,'PO','VAFB SLC 4E',1],[44,6104,'LEO','CCAFS SLC 40',1],[45,4230,'GTO','CCAFS SLC 40',1],[46,6092,'GTO','CCAFS SLC 40',0],[47,9600,'PO','VAFB SLC 4E',0],[48,2760,'ISS','CCAFS SLC 40',0],[49,350,'HEO','CCAFS SLC 40',1],[50,3750,'GTO','KSC LC 39A',1],
+[51,5383,'GTO','CCAFS SLC 40',0],[52,2410,'ISS','CCAFS SLC 40',0],[53,7076,'GTO','CCAFS SLC 40',1],[54,9600,'PO','VAFB SLC 4E',1],[55,5800,'GTO','CCAFS SLC 40',1],[56,7060,'GTO','CCAFS SLC 40',1],[57,2800,'SSO','VAFB SLC 4E',1],[58,3000,'GTO','KSC LC 39A',1],[59,4000,'SSO','VAFB SLC 4E',1],[60,2573,'ISS','CCAFS SLC 40',0],
+[61,4400,'MEO','CCAFS SLC 40',0],[62,9600,'PO','VAFB SLC 4E',1],[63,12259,'ISS','KSC LC 39A',1],[64,2482,'ISS','CCAFS SLC 40',1],[65,13620,'VLEO','CCAFS SLC 40',1],[66,1425,'SSO','VAFB SLC 4E',1],[67,2227,'ISS','CCAFS SLC 40',1],[68,6500,'GTO','CCAFS SLC 40',0],[69,15600,'VLEO','CCAFS SLC 40',1],[70,5000,'ISS','CCAFS SLC 40',1],
+[71,6800,'GTO','CCAFS SLC 40',1],[72,15400,'VLEO','CCAFS SLC 40',1],[73,6104,'SO','KSC LC 39A',0],[74,15600,'VLEO','CCAFS SLC 40',1],[75,15400,'VLEO','CCAFS SLC 40',0],[76,1977,'ISS','CCAFS SLC 40',1],[77,15600,'VLEO','KSC LC 39A',0],[78,15400,'VLEO','KSC LC 39A',1],[79,9525,'ISS','KSC LC 39A',1],[80,15400,'VLEO','CCAFS SLC 40',1],
+[81,15400,'VLEO','CCAFS SLC 40',1],[82,3880,'MEO','CCAFS SLC 40',1],[83,6104,'GEO','CCAFS SLC 40',1],[84,15400,'VLEO','CCAFS SLC 40',1],[85,1600,'SSO','CCAFS SLC 40',1],[86,15400,'VLEO','KSC LC 39A',1],[87,15400,'VLEO','KSC LC 39A',1],[88,15400,'VLEO','KSC LC 39A',1],[89,15400,'VLEO','CCAFS SLC 40',1],[90,3681,'MEO','CCAFS SLC 40',1]
+];
+var YEARS=[[2010,1,0],[2012,1,0],[2013,3,0],[2014,6,2],[2015,6,2],[2016,8,5],[2017,18,15],[2018,18,11],[2019,10,9],[2020,19,16]];
+var SITES=['CCAFS SLC 40','KSC LC 39A','VAFB SLC 4E'];
+var ORBITS=['LEO','ISS','GTO','PO','SSO','MEO','VLEO','ES-L1','HEO','SO','GEO'];
+var SITEC={'CCAFS SLC 40':'#0f62fe','KSC LC 39A':'#1a9850','VAFB SLC 4E':'#f1c40f'};
+function svgOpen(w,h){return '<svg width="'+w+'" height="'+h+'" viewBox="0 0 '+w+' '+h+'" font-family="Arial" font-size="12">';}
+function scatter(id,xIdx,yCats,yIdx,xMax,xTicks,xLabel){
+var W=560,H=300,L=100,R=12,T=16,B=34,pw=W-L-R,ph=H-T-B,bh=ph/yCats.length,s=svgOpen(W,H);
+for(var i=0;i<xTicks.length;i++){var x=L+pw*xTicks[i]/xMax;s+='<line x1="'+x+'" y1="'+T+'" x2="'+x+'" y2="'+(T+ph)+'" stroke="#e0e0e0"/>';s+='<text x="'+x+'" y="'+(T+ph+18)+'" text-anchor="middle">'+xTicks[i]+'</text>';}
+for(var j=0;j<yCats.length;j++){var y=T+bh*(j+0.5);s+='<text x="'+(L-8)+'" y="'+(y+4)+'" text-anchor="end">'+yCats[j]+'</text>';}
+s+='<line x1="'+L+'" y1="'+T+'" x2="'+L+'" y2="'+(T+ph)+'" stroke="#161616"/>';
+s+='<line x1="'+L+'" y1="'+(T+ph)+'" x2="'+(L+pw)+'" y2="'+(T+ph)+'" stroke="#161616"/>';
+s+='<text x="'+(L+pw/2)+'" y="'+(H-4)+'" text-anchor="middle" font-weight="bold">'+xLabel+'</text>';
+for(var k=0;k<DATA.length;k++){var d=DATA[k];var x=L+pw*d[xIdx]/xMax;var y=T+bh*(yCats.indexOf(d[yIdx])+0.5);var c=d[4]===1?'#1a9850':'#d73027';s+='<circle cx="'+x.toFixed(1)+'" cy="'+y.toFixed(1)+'" r="5" fill="'+c+'" fill-opacity="0.85"/>';}
+s+='<circle cx="'+(W-118)+'" cy="12" r="5" fill="#1a9850"/><text x="'+(W-108)+'" y="16">Success</text>';
+s+='<circle cx="'+(W-46)+'" cy="12" r="5" fill="#d73027"/><text x="'+(W-36)+'" y="16">Fail</text>';
+s+='</svg>';
+document.getElementById(id).innerHTML=s;}
+function scatterClass(id){
+var W=560,H=300,L=100,R=12,T=16,B=34,pw=W-L-R,ph=H-T-B,xMax=16000,xTicks=[0,4000,8000,12000,16000],s=svgOpen(W,H);
+for(var i=0;i<xTicks.length;i++){var x=L+pw*xTicks[i]/xMax;s+='<line x1="'+x+'" y1="'+T+'" x2="'+x+'" y2="'+(T+ph)+'" stroke="#e0e0e0"/>';s+='<text x="'+x+'" y="'+(T+ph+18)+'" text-anchor="middle">'+xTicks[i]+'</text>';}
+s+='<text x="'+(L-8)+'" y="'+(T+ph*0.25+4)+'" text-anchor="end">Landed (1)</text>';
+s+='<text x="'+(L-8)+'" y="'+(T+ph*0.75+4)+'" text-anchor="end">Failed (0)</text>';
+s+='<line x1="'+L+'" y1="'+T+'" x2="'+L+'" y2="'+(T+ph)+'" stroke="#161616"/>';
+s+='<line x1="'+L+'" y1="'+(T+ph)+'" x2="'+(L+pw)+'" y2="'+(T+ph)+'" stroke="#161616"/>';
+s+='<text x="'+(L+pw/2)+'" y="'+(H-4)+'" text-anchor="middle" font-weight="bold">Payload mass (kg)</text>';
+for(var k=0;k<DATA.length;k++){var d=DATA[k];var x=L+pw*d[1]/xMax;var y=T+ph*(d[4]===1?0.25:0.75);s+='<circle cx="'+x.toFixed(1)+'" cy="'+y.toFixed(1)+'" r="5" fill="'+SITEC[d[3]]+'" fill-opacity="0.85"/>';}
+s+='<circle cx="'+(W-196)+'" cy="12" r="5" fill="#0f62fe"/><text x="'+(W-186)+'" y="16">CCAFS</text>';
+s+='<circle cx="'+(W-128)+'" cy="12" r="5" fill="#1a9850"/><text x="'+(W-118)+'" y="16">KSC</text>';
+s+='<circle cx="'+(W-70)+'" cy="12" r="5" fill="#f1c40f"/><text x="'+(W-60)+'" y="16">VAFB</text>';
+s+='</svg>';
+document.getElementById(id).innerHTML=s;}
+function lineYearly(id){
+var W=560,H=300,L=46,R=16,T=18,B=34,pw=W-L-R,ph=H-T-B,s=svgOpen(W,H),pts=[];
+for(var g=0;g<=100;g+=25){var y=T+ph*(1-g/100);s+='<line x1="'+L+'" y1="'+y+'" x2="'+(L+pw)+'" y2="'+y+'" stroke="#e0e0e0"/>';s+='<text x="'+(L-6)+'" y="'+(y+4)+'" text-anchor="end">'+g+'%</text>';}
+for(var i=0;i<YEARS.length;i++){var yr=YEARS[i][0];var x=L+pw*(yr-2010)/10;s+='<text x="'+x+'" y="'+(T+ph+18)+'" text-anchor="middle">'+yr+'</text>';}
+s+='<line x1="'+L+'" y1="'+T+'" x2="'+L+'" y2="'+(T+ph)+'" stroke="#161616"/>';
+s+='<line x1="'+L+'" y1="'+(T+ph)+'" x2="'+(L+pw)+'" y2="'+(T+ph)+'" stroke="#161616"/>';
+for(var j=0;j<YEARS.length;j++){var rate=YEARS[j][2]/YEARS[j][1]*100;var x2=L+pw*(YEARS[j][0]-2010)/10;var y2=T+ph*(1-rate/100);pts.push(x2.toFixed(1)+','+y2.toFixed(1));s+='<circle cx="'+x2.toFixed(1)+'" cy="'+y2.toFixed(1)+'" r="5" fill="#0f62fe"/>';s+='<text x="'+x2.toFixed(1)+'" y="'+(y2-10)+'" text-anchor="middle" font-weight="bold">'+rate.toFixed(0)+'%</text>';}
+s+='<polyline points="'+pts.join(' ')+'" fill="none" stroke="#0f62fe" stroke-width="2"/>';
+s+='<text x="'+(L+pw/2)+'" y="'+(H-4)+'" text-anchor="middle" font-weight="bold">Year</text>';
+s+='</svg>';
+document.getElementById(id).innerHTML=s;}
+function barH(id){
+var data=[['SSO',100],['ES-L1',100],['GEO',100],['HEO',100],['VLEO',85.7],['LEO',71.4],['PO',66.7],['MEO',66.7],['ISS',61.9],['GTO',51.9],['SO',0]];
+var W=560,H=300,L=64,R=52,T=10,B=26,pw=W-L-R,ph=H-T-B,bh=ph/data.length,s=svgOpen(W,H);
+for(var g=0;g<=100;g+=25){var x=L+pw*g/100;s+='<line x1="'+x+'" y1="'+T+'" x2="'+x+'" y2="'+(T+ph)+'" stroke="#e0e0e0"/>';s+='<text x="'+x+'" y="'+(T+ph+16)+'" text-anchor="middle">'+g+'%</text>';}
+for(var i=0;i<data.length;i++){var y=T+bh*i+bh*0.15;var bw=pw*data[i][1]/100;s+='<text x="'+(L-8)+'" y="'+(y+bh*0.55)+'" text-anchor="end">'+data[i][0]+'</text>';s+='<rect x="'+L+'" y="'+y+'" width="'+Math.max(bw,1)+'" height="'+(bh*0.7)+'" fill="#0f62fe"/>';s+='<text x="'+(L+bw+6)+'" y="'+(y+bh*0.55)+'">'+data[i][1].toFixed(1)+'%</text>';}
+s+='</svg>';
+document.getElementById(id).innerHTML=s;}
+function pie(id,data,colors){
+var W=560,H=300,cx=150,cy=150,r=105,total=0,s=svgOpen(W,H);
+for(var i=0;i<data.length;i++){total+=data[i][1];}
+var a0=-Math.PI/2;
+for(var j=0;j<data.length;j++){var frac=data[j][1]/total;var a1=a0+frac*2*Math.PI;var large=frac>0.5?1:0;var x1=cx+r*Math.cos(a0),y1=cy+r*Math.sin(a0),x2=cx+r*Math.cos(a1),y2=cy+r*Math.sin(a1);s+='<path d="M '+cx+' '+cy+' L '+x1.toFixed(1)+' '+y1.toFixed(1)+' A '+r+' '+r+' 0 '+large+' 1 '+x2.toFixed(1)+' '+y2.toFixed(1)+' Z" fill="'+colors[j]+'" stroke="#fff" stroke-width="2"/>';a0=a1;}
+for(var k=0;k<data.length;k++){var ly=70+k*34;s+='<rect x="290" y="'+(ly-12)+'" width="14" height="14" fill="'+colors[k]+'"/>';s+='<text x="312" y="'+ly+'">'+data[k][0]+' — '+data[k][1]+' ('+(data[k][1]/total*100).toFixed(1)+'%)</text>';}
+s+='</svg>';
+document.getElementById(id).innerHTML=s;}
+function barV(id){
+var data=[['Log. Reg.',83.33,'#0f62fe'],['SVM',83.33,'#0f62fe'],['Dec. Tree',94.44,'#1a9850'],['KNN',66.67,'#d73027']];
+var W=560,H=300,L=40,R=10,T=26,B=44,pw=W-L-R,ph=H-T-B,bw=pw/4*0.58,s=svgOpen(W,H);
+for(var g=0;g<=100;g+=25){var y=T+ph*(1-g/100);s+='<line x1="'+L+'" y1="'+y+'" x2="'+(L+pw)+'" y2="'+y+'" stroke="#e0e0e0"/>';s+='<text x="'+(L-6)+'" y="'+(y+4)+'" text-anchor="end">'+g+'%</text>';}
+for(var i=0;i<data.length;i++){var x=L+pw*(i+0.5)/4-bw/2;var bh2=ph*data[i][1]/100;s+='<rect x="'+x+'" y="'+(T+ph-bh2)+'" width="'+bw+'" height="'+bh2+'" fill="'+data[i][2]+'"/>';s+='<text x="'+(x+bw/2)+'" y="'+(T+ph-bh2-8)+'" text-anchor="middle" font-weight="bold">'+data[i][1].toFixed(2)+'%</text>';s+='<text x="'+(x+bw/2)+'" y="'+(T+ph+20)+'" text-anchor="middle">'+data[i][0]+'</text>';}
+s+='<line x1="'+L+'" y1="'+T+'" x2="'+L+'" y2="'+(T+ph)+'" stroke="#161616"/>';
+s+='<line x1="'+L+'" y1="'+(T+ph)+'" x2="'+(L+pw)+'" y2="'+(T+ph)+'" stroke="#161616"/>';
+s+='</svg>';
+document.getElementById(id).innerHTML=s;}
+function mapChart(id){
+var W=1100,H=330,s=svgOpen(W,H);
+function panel(px,py,pw,ph,lon0,lon1,lat0,lat1,lonTicks,latTicks,title){
+var o='<text x="'+(px+pw/2)+'" y="'+(py-8)+'" text-anchor="middle" font-weight="bold" font-size="14">'+title+'</text>';
+o+='<rect x="'+px+'" y="'+py+'" width="'+pw+'" height="'+ph+'" fill="#f4f4f4" stroke="#c6c6c6"/>';
+for(var i=0;i<lonTicks.length;i++){var x=px+pw*(lonTicks[i]-lon0)/(lon1-lon0);o+='<line x1="'+x+'" y1="'+py+'" x2="'+x+'" y2="'+(py+ph)+'" stroke="#e0e0e0"/>';o+='<text x="'+x+'" y="'+(py+ph+15)+'" text-anchor="middle">'+lonTicks[i]+'</text>';}
+for(var j=0;j<latTicks.length;j++){var y=py+ph*(1-(latTicks[j]-lat0)/(lat1-lat0));o+='<line x1="'+px+'" y1="'+y+'" x2="'+(px+pw)+'" y2="'+y+'" stroke="#e0e0e0"/>';o+='<text x="'+(px-6)+'" y="'+(y+4)+'" text-anchor="end">'+latTicks[j]+'</text>';}
+return o;}
+function dot(px,py,pw,ph,lon0,lon1,lat0,lat1,lon,lat,color,label,dx,dy){
+var x=px+pw*(lon-lon0)/(lon1-lon0);var y=py+ph*(1-(lat-lat0)/(lat1-lat0));
+return '<circle cx="'+x.toFixed(1)+'" cy="'+y.toFixed(1)+'" r="8" fill="'+color+'" stroke="#161616" stroke-width="1"/><text x="'+(x+dx)+'" y="'+(y+dy)+'">'+label+'</text>';}
+s+=panel(46,26,460,250,-125,-70,24,40,[-120,-110,-100,-90,-80],[24,28,32,36,40],'United States — launch sites');
+s+=dot(46,26,460,250,-125,-70,24,40,-80.6,28.57,'#0f62fe','Florida: CCAFS LC-40, CCAFS SLC-40, KSC LC-39A',14,4);
+s+=dot(46,26,460,250,-125,-70,24,40,-120.61,34.63,'#f1c40f','VAFB SLC-4E (California)',14,4);
+s+=panel(620,26,440,250,-80.70,-80.54,28.54,28.60,[-80.70,-80.65,-80.60,-80.55],[28.55,28.57,28.59],'Florida detail — the three Florida sites');
+s+=dot(620,26,440,250,-80.70,-80.54,28.54,28.60,-80.5774,28.5623,'#0f62fe','CCAFS LC-40',12,4);
+s+=dot(620,26,440,250,-80.70,-80.54,28.54,28.60,-80.5768,28.5632,'#1a9850','CCAFS SLC-40',12,18);
+s+=dot(620,26,440,250,-80.70,-80.54,28.54,28.60,-80.6469,28.5733,'#f1c40f','KSC LC-39A',12,4);
+s+='<text x="46" y="300">Longitude (x) and latitude (y). Florida sites are ~0.07 deg apart; the detail panel zooms in on them.</text>';
+s+='</svg>';
+document.getElementById(id).innerHTML=s;}
+scatter('ch-fn-site',0,SITES,3,90,[0,15,30,45,60,75,90],'Flight number');
+scatter('ch-pay-site',1,SITES,3,16000,[0,4000,8000,12000,16000],'Payload mass (kg)');
+scatter('ch-fn-orbit',0,ORBITS,2,90,[0,15,30,45,60,75,90],'Flight number');
+scatter('ch-pay-orbit',1,ORBITS,2,16000,[0,4000,8000,12000,16000],'Payload mass (kg)');
+lineYearly('ch-yearly');
+barH('ch-orbitbar');
+mapChart('ch-map');
+pie('ch-pie-site',[['CCAFS SLC 40',33],['KSC LC 39A',17],['VAFB SLC 4E',10]],['#0f62fe','#1a9850','#f1c40f']);
+scatterClass('ch-pay-class');
+barV('ch-model');
+</script>
+</body></html>
